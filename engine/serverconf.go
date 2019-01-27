@@ -43,12 +43,13 @@ func (ac *Config) Info() string {
 
 	// Write the status of flags that can be toggled
 	utils.WriteStatus(&sb, "Options", map[string]bool{
-		"Debug":        ac.debugMode,
-		"Production":   ac.productionMode,
-		"Auto-refresh": ac.autoRefresh,
-		"Dev":          ac.devMode,
-		"Server":       ac.serverMode,
-		"StatCache":    ac.cacheFileStat,
+		"Debug":         ac.debugMode,
+		"Production":    ac.productionMode,
+		"Auto-refresh":  ac.autoRefresh,
+		"Dev":           ac.devMode,
+		"Server":        ac.serverMode,
+		"StatCache":     ac.cacheFileStat,
+		"Let's Encrypt": ac.letsEncrypt,
 	})
 
 	sb.WriteString("Cache mode:\t\t" + ac.cacheMode.String() + "\n")

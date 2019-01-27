@@ -105,6 +105,7 @@ Available flags:
   --domain                     Serve files from the subdirectory with the same
                                name as the requested domain.
   -u                           Serve over QUIC.
+  -r, --letsencrypt            Use Let's Encrypt.
 
 
 Example usage:
@@ -133,7 +134,7 @@ func (ac *Config) handleFlags(serverTempDir string) {
 		debugModeShort, serverModeShort, useBoltShort, devModeShort,
 		showVersionShort, quietModeShort, cacheFileStatShort, simpleModeShort,
 		noBannerShort, quitAfterFirstRequestShort, verboseModeShort,
-		serveJustQUICShort, serveNothingShort bool
+		serveJustQUICShort, serveNothingShort, letsEncryptShort bool
 		// Used when setting the cache mode
 		cacheModeString string
 		// Used if disabling cache compression
@@ -214,6 +215,7 @@ func (ac *Config) handleFlags(serverTempDir string) {
 	flag.StringVar(&ac.combinedAccessLogFilename, "accesslog", "", "Combined access log filename")
 	flag.StringVar(&ac.commonAccessLogFilename, "ncsa", "", "NCSA access log filename")
 	flag.BoolVar(&ac.clearDefaultPathPrefixes, "clear", false, "Clear the default URI prefixes for handling permissions")
+	flag.BoolVar(&ac.letsEncrypt, "letsencrypt", false, "Use Let's Encrypt")
 
 	// The short versions of some flags
 	flag.BoolVar(&serveJustHTTPShort, "t", false, "Serve plain old HTTP")
@@ -234,6 +236,7 @@ func (ac *Config) handleFlags(serverTempDir string) {
 	flag.BoolVar(&noBannerShort, "n", false, "Don't show a banner at start")
 	flag.BoolVar(&serveJustQUICShort, "u", false, "Serve just QUIC")
 	flag.BoolVar(&serveNothingShort, "l", false, "Only present the Lua REPL")
+	flag.BoolVar(&letsEncryptShort, "r", false, "Use Let's Encrypt")
 
 	flag.Parse()
 
@@ -255,6 +258,7 @@ func (ac *Config) handleFlags(serverTempDir string) {
 	ac.noBanner = ac.noBanner || noBannerShort
 	ac.serveJustQUIC = ac.serveJustQUIC || serveJustQUICShort
 	ac.serveNothing = ac.serveNothing || serveNothingShort // "Lua mode"
+	ac.letsEncrypt = ac.letsEncrypt || letsEncryptShort
 
 	// Serve a single Markdown file once, and open it in the browser
 	if ac.markdownMode {
