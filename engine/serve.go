@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lucas-clemente/quic-go/h2quic"
+	"github.com/mholt/certmagic"
 	log "github.com/sirupsen/logrus"
 	"github.com/tylerb/graceful"
 	"golang.org/x/net/http2"
@@ -87,6 +88,12 @@ func (ac *Config) NewGracefulServer(mux *http.ServeMux, http2support bool, addr 
 
 		MaxHeaderBytes: 1 << 20,
 	}
+	magic := certmagic.NewDefault()
+	certmagic.OnDemand = &certmagic.OnDemandConfig{MaxObtain: 99}
+	// Set up Let's Encrypt support, but only over HTTP on port :80
+	if ac.letsEncrypt && (!strings.Contains(addr, ":") || strings.HasSuffix(addr, ":80")) {
+		s.Handler = magic.HTTPChallengeHandler(s.Handler)
+	}
 	if http2support {
 		// Enable HTTP/2 support
 		http2.ConfigureServer(s, nil)
@@ -120,30 +127,32 @@ func (ac *Config) Serve(mux *http.ServeMux, done, ready chan bool) error {
 
 	// Goroutine that wait for a message to just serve regular HTTP, if needed
 	go func() {
-		<-justServeRegularHTTP // Wait for a message to just serve regular HTTP
-		if strings.HasPrefix(ac.serverAddr, ":") {
-			log.Info("Serving HTTP on http://localhost" + ac.serverAddr + "/")
-		} else {
-			log.Info("Serving HTTP on http://" + ac.serverAddr + "/")
-		}
-		mut.Lock()
-		servingHTTP = true
-		mut.Unlock()
-		HTTPserver := ac.NewGracefulServer(mux, false, ac.serverAddr)
-		// Open the URL before the serving has started, in a short delay
-		if ac.openURLAfterServing && ac.luaServerFilename != "" {
-			go func() {
-				time.Sleep(delayBeforeLaunchingBrowser)
-				ac.OpenURL(ac.serverHost, ac.serverAddr, false)
-			}()
-		}
-		// Start serving. Shut down gracefully at exit.
-		if err := HTTPserver.ListenAndServe(); err != nil {
+		if !ac.letsEncrypt {
+			<-justServeRegularHTTP // Wait for a message to just serve regular HTTP
+			if strings.HasPrefix(ac.serverAddr, ":") {
+				log.Info("Serving HTTP on http://localhost" + ac.serverAddr + "/")
+			} else {
+				log.Info("Serving HTTP on http://" + ac.serverAddr + "/")
+			}
 			mut.Lock()
-			servingHTTP = false
+			servingHTTP = true
 			mut.Unlock()
-			// If we can't serve regular HTTP on port 80, give up
-			ac.fatalExit(err)
+			HTTPserver := ac.NewGracefulServer(mux, false, ac.serverAddr)
+			// Open the URL before the serving has started, in a short delay
+			if ac.openURLAfterServing && ac.luaServerFilename != "" {
+				go func() {
+					time.Sleep(delayBeforeLaunchingBrowser)
+					ac.OpenURL(ac.serverHost, ac.serverAddr, false)
+				}()
+			}
+			// Start serving. Shut down gracefully at exit.
+			if err := HTTPserver.ListenAndServe(); err != nil {
+				mut.Lock()
+				servingHTTP = false
+				mut.Unlock()
+				// If we can't serve regular HTTP on port 80, give up
+				ac.fatalExit(err)
+			}
 		}
 	}()
 
@@ -170,7 +179,9 @@ func (ac *Config) Serve(mux *http.ServeMux, done, ready chan bool) error {
 				log.Info("Use the -t flag for serving regular HTTP instead")
 				// If QUIC failed (perhaps the key + cert are missing),
 				// serve plain HTTP instead
-				justServeRegularHTTP <- true
+				if !ac.letsEncrypt {
+					justServeRegularHTTP <- true
+				}
 				mut.Lock()
 				servingHTTPS = false
 				mut.Unlock()
@@ -233,7 +244,9 @@ func (ac *Config) Serve(mux *http.ServeMux, done, ready chan bool) error {
 				mut.Lock()
 				servingHTTPS = false
 				mut.Unlock()
-				justServeRegularHTTP <- true
+				if !ac.letsEncrypt {
+					justServeRegularHTTP <- true
+				}
 				log.Error(err)
 			}
 		}()
@@ -258,7 +271,9 @@ func (ac *Config) Serve(mux *http.ServeMux, done, ready chan bool) error {
 				mut.Unlock()
 				// If HTTPS failed (perhaps the key + cert are missing),
 				// serve plain HTTP instead
-				justServeRegularHTTP <- true
+				if !ac.letsEncrypt {
+					justServeRegularHTTP <- true
+				}
 			}
 		}()
 	default:
@@ -283,6 +298,21 @@ func (ac *Config) Serve(mux *http.ServeMux, done, ready chan bool) error {
 		httpsProtocol := servingHTTPS
 		mut.Unlock()
 		ac.OpenURL(ac.serverHost, ac.serverAddr, httpsProtocol)
+	}
+
+	// If not serving anything over HTTP by now, and Let's Encrypt is supported, try
+	// setting up a handler for ACME HTTP Challenges.
+	if ac.letsEncrypt {
+		magic := certmagic.NewDefault()
+		certmagic.OnDemand = &certmagic.OnDemandConfig{MaxObtain: 99}
+		log.Info("Setting up HTTP handler for Let's Encrypt at port 80")
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+			log.Info("Got a request at / in the Let's Encrypt HTTP handler at port 80")
+		})
+		if err := http.ListenAndServe(":80", magic.HTTPChallengeHandler(mux)); err != nil {
+			log.Error("Could not serve HTTP handler for Let's Encrypt at port 80")
+		}
 	}
 
 	<-done // Wait for a "done" message from the REPL (or just keep waiting)
