@@ -41,7 +41,8 @@ func URL2filename(dirname, urlpath string) string {
 	return dirname + "/" + urlpath
 }
 
-// GetFilenames retrieves a list of filenames from a given directory name (that must exist)
+// GetFilenames retrieves a list of filenames from a given directory name (that must exist).
+// Returns both files and directories.
 func GetFilenames(dirname string) []string {
 	dir, err := os.Open(dirname)
 	if err != nil {
