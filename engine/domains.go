@@ -1,8 +1,33 @@
 package engine
 
 import (
+	"github.com/mholt/certmagic"
+	log "github.com/sirupsen/logrus"
+	"github.com/xyproto/algernon/utils"
 	"net/http"
+	"path/filepath"
 )
+
+// GetDomainDirectories returns a slice of all directory names that qualifies
+// for serving contents for specific domains, when using the --domain flag.
+// This function has no caching and is intented to be called only when configuring
+// Let's Encrypt with certmagic.
+func (ac *Config) GetDomainDirectories() []string {
+	if !ac.serverAddDomain {
+		log.Warn("Looking for domain names without --domain being specified")
+	}
+	domains := []string{}
+	if ac.fs.IsDir(ac.serverDirOrFilename) {
+		for _, fileOrDirectory := range utils.GetFilenames(ac.serverDirOrFilename) {
+			dirname := filepath.Join(ac.serverDirOrFilename, fileOrDirectory)
+			if ac.fs.IsDir(dirname) && certmagic.HostQualifies(fileOrDirectory) {
+				// This directory qualifies for holding the contents for a domain
+				domains = append(domains, fileOrDirectory)
+			}
+		}
+	}
+	return domains
+}
 
 // GetDomain returns the domain of a request (up to ":", if any)
 func GetDomain(req *http.Request) string {

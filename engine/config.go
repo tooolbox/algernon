@@ -125,6 +125,7 @@ type Config struct {
 	redisDBindex       int
 	redisAddrSpecified bool
 
+	// Rate limiting
 	limitRequests       int64 // rate limit to this many requests per client per second
 	disableRateLimiting bool
 
@@ -246,7 +247,7 @@ type Config struct {
 
 	// CertMagic / Let's Encrypt config
 	cmEmail string
-	magic *certmagic.Config
+	magic   *certmagic.Config
 
 	// Keep track of domains served so far, if --domain is given
 	domains   []string

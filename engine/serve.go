@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/lucas-clemente/quic-go/http3"
+	"github.com/mholt/certmagic"
 	log "github.com/sirupsen/logrus"
 	"github.com/tylerb/graceful"
 	"golang.org/x/net/http2"
-	"github.com/mholt/certmagic"
 )
 
 // List of functions to run at shutdown
@@ -90,6 +90,9 @@ func (ac *Config) NewGracefulServer(mux *http.ServeMux, http2support bool, addr 
 	}
 	// Let's Encrypt with CertMagic
 	if ac.magic != nil {
+		if strings.HasSuffix(addr, ":80") {
+			log.Info("USING THE MAGIC MUX FOR ADDR " + addr)
+		}
 		s.Handler = ac.magic.HTTPChallengeHandler(mux)
 	}
 	if http2support {
@@ -123,12 +126,34 @@ func (ac *Config) Serve(mux *http.ServeMux, done, ready chan bool) error {
 	servingHTTPS := false
 	servingHTTP := false
 
-	// Initialize Cert Magic, if needed (will output a log message)
+	// Initialize Cert Magic, if needed (will output a log message if initialized earlier)
 	if ac.cmEmail != "" {
 		ac.magic = certmagic.NewDefault()
 		ac.magic.Agreed = true
 		ac.magic.Email = ac.cmEmail
 		ac.magic.CA = certmagic.LetsEncryptStagingCA
+
+		// TODO: Use these, for adding any specified certificate files
+		//CacheUnmanagedCertificatePEMBytes()
+		//CacheUnmanagedCertificatePEMFile()
+		//CacheUnmanagedTLSCertificate()
+
+		// Using an OnDemand function for checking for directories is not fast.
+		// TODO: Only do this if the debug flag is set.
+		ac.magic.OnDemand = &certmagic.OnDemandConfig{
+			DecisionFunc: func(name string) error {
+				// Check if the domain in question has a corresponding directory
+				for _, d := range ac.GetDomainDirectories() {
+					if d == name {
+						log.Info(name + " is okay")
+						// OK, found it
+						return nil
+					}
+				}
+				// Could not find the given name in the list of recognized domain names
+				return errors.New("not allowed")
+			},
+		}
 	}
 
 	// Goroutine that wait for a message to just serve regular HTTP, if needed
