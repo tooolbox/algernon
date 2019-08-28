@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tylerb/graceful"
 	"golang.org/x/net/http2"
+	"github.com/mholt/certmagic"
 )
 
 // List of functions to run at shutdown
@@ -87,6 +88,10 @@ func (ac *Config) NewGracefulServer(mux *http.ServeMux, http2support bool, addr 
 
 		MaxHeaderBytes: 1 << 20,
 	}
+	// Let's Encrypt with CertMagic
+	if ac.magic != nil {
+		s.Handler = ac.magic.HTTPChallengeHandler(mux)
+	}
 	if http2support {
 		// Enable HTTP/2 support
 		http2.ConfigureServer(s, nil)
@@ -117,6 +122,14 @@ func (ac *Config) Serve(mux *http.ServeMux, done, ready chan bool) error {
 
 	servingHTTPS := false
 	servingHTTP := false
+
+	// Initialize Cert Magic, if needed (will output a log message)
+	if ac.cmEmail != "" {
+		ac.magic = certmagic.NewDefault()
+		ac.magic.Agreed = true
+		ac.magic.Email = ac.cmEmail
+		ac.magic.CA = certmagic.LetsEncryptStagingCA
+	}
 
 	// Goroutine that wait for a message to just serve regular HTTP, if needed
 	go func() {

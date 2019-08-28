@@ -101,12 +101,14 @@ Available flags:
   --accesslog=FILENAME         Access log filename. Logged in Combined Log Format (CLF).
   --ncsa=FILENAME              Alternative access log filename. Logged in Common Log Format (NCSA).
   --cookiesecret=STRING        Secret that will be used for login cookies.
-  -x, --simple                 Serve as regular HTTP, enable server mode and
-                               disable all features that requires a database.
   --domain                     Serve files from the subdirectory with the same
                                name as the requested domain.
+  --autocert=EMAIL             Given a conctact email, automatically renew HTTPS
+                               certificates with Let's Encrypt, using port 80 for the
+                               ACME response + redirect to HTTPS.
+  -x, --simple                 Serve as regular HTTP, enable server mode and
+                               disable all features that requires a database.
   -u                           Serve over QUIC.
-
 
 Example usage:
 
@@ -216,6 +218,7 @@ func (ac *Config) handleFlags(serverTempDir string) {
 	flag.StringVar(&ac.commonAccessLogFilename, "ncsa", "", "NCSA access log filename")
 	flag.BoolVar(&ac.clearDefaultPathPrefixes, "clear", false, "Clear the default URI prefixes for handling permissions")
 	flag.StringVar(&ac.cookieSecret, "cookiesecret", "", "Secret to be used when setting and getting login cookies")
+	flag.StringVar(&ac.cmEmail, "autocert", "", "Contact email for Let's Encrypt")
 
 	// The short versions of some flags
 	flag.BoolVar(&serveJustHTTPShort, "t", false, "Serve plain old HTTP")
@@ -454,6 +457,8 @@ func (ac *Config) handleFlags(serverTempDir string) {
 	}
 
 	ac.serverHost = host
+
+	// ac.magic will be initialized when starting to serve, if ac.cmEmail is set
 }
 
 // Set the values that has not been set by flags nor scripts (and can be set by both)

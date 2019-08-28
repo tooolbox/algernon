@@ -22,7 +22,7 @@ func (ac *Config) InsertAutoRefresh(req *http.Request, htmldata []byte) []byte {
 		if ac.serverHost != "" {
 			fullHost = ac.serverHost + ac.eventAddr
 		} else {
-			fullHost = utils.GetDomain(req) + ac.eventAddr
+			fullHost = GetDomain(req) + ac.eventAddr
 		}
 	}
 	// Wait 70% of an event duration before starting to listen for events

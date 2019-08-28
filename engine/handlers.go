@@ -456,8 +456,10 @@ func (ac *Config) RegisterHandlers(mux *http.ServeMux, handlePath, servedir stri
 		servedir := servedir
 
 		// Look for the directory that is named the same as the host
+		domain := ""
 		if addDomain {
-			servedir = filepath.Join(servedir, utils.GetDomain(req))
+			domain = GetDomain(req)
+			servedir = filepath.Join(servedir, domain)
 		}
 
 		urlpath := req.URL.Path
@@ -475,6 +477,14 @@ func (ac *Config) RegisterHandlers(mux *http.ServeMux, handlePath, servedir stri
 		if !ac.noHeaders {
 			ac.ServerHeaders(w)
 		}
+
+		// Save the domain for later, if not already saved
+		if addDomain && ac.magic != nil {
+			ac.CollectDomain(domain)
+		}
+
+		// DEBUG
+		log.Info(ac.Domains())
 
 		// Share the directory or file
 		if hasdir {

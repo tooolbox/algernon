@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jvatic/goja-babel"
+	"github.com/mholt/certmagic"
 	"github.com/mitchellh/colorstring"
 	log "github.com/sirupsen/logrus"
 	"github.com/xyproto/algernon/cachemode"
@@ -242,6 +243,14 @@ type Config struct {
 
 	// Secret to be used when setting and getting user login cookies
 	cookieSecret string
+
+	// CertMagic / Let's Encrypt config
+	cmEmail string
+	magic *certmagic.Config
+
+	// Keep track of domains served so far, if --domain is given
+	domains   []string
+	domainMut *sync.RWMutex
 }
 
 // ErrVersion is returned when the initialization quits because all that is done
@@ -311,6 +320,9 @@ func New(versionString, description string) (*Config, error) {
 				"transform-es2015-block-scoping",
 			},
 		},
+
+		// Mutex for creating a list of accessed domain names
+		domainMut: &sync.RWMutex{},
 	}
 	if err := ac.initFilesAndCache(); err != nil {
 		return nil, err
